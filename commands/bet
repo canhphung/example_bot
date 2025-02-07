@@ -1,0 +1,43 @@
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName('bet')
+    .setDescription('Đặt cược vào phiên Tài Xỉu')
+    .addIntegerOption(option =>
+      option.setName('amount')
+        .setDescription('Số tiền cược')
+        .setRequired(true))
+    .addStringOption(option =>
+      option.setName('choice')
+        .setDescription('Tài/Xỉu hoặc số (3-18)')
+        .setRequired(true)),
+  async execute(interaction) {
+    const choice = interaction.options.getString('choice');
+    const amount = interaction.options.getInteger('amount');
+    const guildId = interaction.guildId;
+    const game = interaction.client.games.get(guildId);
+
+    if (!game || game.status !== 'open') {
+      await interaction.reply({ content: 'Không có phiên Tài Xỉu!', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    // Xử lý lựa chọn
+    let normalizedChoice = choice.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    let finalChoice;
+    if (normalizedChoice === 'tai') finalChoice = 'tài';
+    else if (normalizedChoice === 'xiu') finalChoice = 'xỉu';
+    else {
+      const num = parseInt(normalizedChoice);
+      if (num >= 3 && num <= 18) finalChoice = num.toString();
+      else {
+        await interaction.reply({ content: 'Lựa chọn không hợp lệ!', flags: MessageFlags.Ephemeral });
+        return;
+      }
+    }
+
+    game.addBet(interaction.user.id, amount, finalChoice);
+    await interaction.reply({ content: `✅ Đã đặt **${amount}** vào **${finalChoice}**!`, flags: MessageFlags.Ephemeral });
+  }
+};

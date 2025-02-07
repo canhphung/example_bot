@@ -1,0 +1,3 @@
+greeting: "Địt mẹ mày, {username}!"
+farewell: "Tạm biệt, {username}!"
+error: "Đã xảy ra lỗi."

@@ -1,0 +1,30 @@
+```
+└── 📁PCBot
+    └── 📁commands
+        └── bet
+        └── chuyentien.js
+        └── clear.js
+        └── history.js
+        └── ping.js
+        └── profile.js
+        └── taixiu.js
+    └── 📁data
+        └── game_history.json
+    └── 📁events
+        └── interactionCreate.js
+    └── 📁locales
+        └── en.yml
+        └── vi.yml
+    └── 📁models
+        └── User.js
+    └── 📁utils
+        └── game.js
+        └── languageManager.js
+    └── .env
+    └── .gitignore
+    └── bot.js
+    └── config.json
+    └── deploy-commands.js
+    └── package-lock.json
+    └── package.json
+```

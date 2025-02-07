@@ -1,0 +1,171 @@
+const { EmbedBuilder, MessageFlags } = require('discord.js');
+const User = require('../models/User');
+const Game = require('../utils/game');
+
+module.exports = {
+  name: 'interactionCreate',
+  async execute(interaction, client) {
+    if (interaction.isCommand()) {
+      const command = client.commands.get(interaction.commandName);
+      if (!command) return;
+
+      try {
+        await command.execute(interaction);
+      } catch (error) {
+        console.error(`Lỗi lệnh ${interaction.commandName}:`, error);
+        await interaction.reply({ 
+          content: '❌ Lỗi thực thi lệnh!', 
+          flags: MessageFlags.Ephemeral 
+        });
+      }
+      return;
+    }
+
+    if (interaction.isButton()) {
+      try {
+        if (interaction.customId === 'game_history') {
+          const history = client.gameHistory?.get(interaction.channelId) || [];
+          const historyEmbed = new EmbedBuilder()
+            .setTitle('📜 LỊCH SỬ 5 PHIÊN GẦN NHẤT')
+            .setColor(0x6B8E23)
+            .setDescription(
+              history.slice(-5).reverse().map((game, idx) => 
+                `**#${idx + 1}** ${game.dice} » **${game.sum}** (${game.result})\n⏱️ ${game.time}`
+              ).join('\n\n') || 'Chưa có lịch sử'
+            );
+          
+          return interaction.reply({ 
+            embeds: [historyEmbed], 
+            flags: MessageFlags.Ephemeral 
+          });
+        }
+
+        const game = client.games.get(interaction.channelId);
+        if (!game || game.status !== 'open') {
+          return interaction.reply({ 
+            content: '⏳ Phiên đã kết thúc!', 
+            flags: MessageFlags.Ephemeral 
+          });
+        }
+
+        const [type, amount, choice] = interaction.customId.split('_').slice(1);
+        
+        if (game.bets.some(b => b.userId === interaction.user.id)) {
+          return interaction.reply({ 
+            content: '❌ Mỗi người chỉ được cược 1 lần!', 
+            flags: MessageFlags.Ephemeral 
+          });
+        }
+
+        if (type === 'tai' || type === 'xiu') {
+          await game.createBetOptions(interaction, type);
+          return;
+        }
+
+        if (type === 'amount') {
+
+          const user = await User.findOneAndUpdate(
+            { userId: interaction.user.id },
+            { $setOnInsert: { balance: 10000 } },
+            { upsert: true, new: true }
+          );
+      
+          // Xử lý modal submit
+    if (interaction.isModalSubmit()) {
+      await interaction.deferReply({ ephemeral: true }); // Thêm dòng này
+      try {
+        const [_, choice] = interaction.customId.split('_').slice(1);
+        const game = client.games.get(interaction.channelId);
+        
+        if (!game || game.status !== 'open') {
+          return interaction.reply({ 
+            content: '⏳ Phiên cược đã kết thúc!', 
+            ephemeral: true 
+          });
+        }
+
+        const userInput = interaction.fields.getTextInputValue('bet_amount');
+        const user = await User.findOne({ userId: interaction.user.id });
+        const input = interaction.fields.getTextInputValue('bet_amount');
+        
+       // Xử lý giá trị nhập
+       let amount;
+       if (input.toLowerCase().match(/^(all|max)$/)) {
+         amount = user.balance;
+       } else {
+         // Xử lý các định dạng số (1k = 1000, 2.5k = 2500)
+         const numberValue = input.toLowerCase().replace(/[^0-9.k]/g, '');
+         amount = Math.round(parseFloat(numberValue.replace('k', '')) * 1000) || 0;
+       }
+
+        // Validate
+        if (isNaN(amount) || amount < 100) {
+          return interaction.reply({
+            content: '❌ Số tiền tối thiểu là 100 coins!',
+            ephemeral: true
+          });
+        }
+
+        if (amount > user.balance) {
+          return interaction.reply({
+            content: `❌ Bạn chỉ có ${user.balance.toLocaleString()} coins!`,
+            ephemeral: true
+          });
+        }
+
+        // Thêm cược
+        game.bets.push({
+          userId: interaction.user.id,
+          amount: amount,
+          choice: choice
+        });
+
+        // Xác nhận
+        await interaction.editReply({
+          content: `✅ Đã đặt **${amount.toLocaleString()} coins** vào **${choice.toUpperCase()}**!`,
+          ephemeral: true
+        });
+
+        // Cập nhật embed
+        await game.updateEmbed();
+
+      } catch (error) {
+        console.error('Lỗi xử lý đặt cược:', error);
+        await interaction.editReply({
+          content: '❌ Lỗi xử lý đặt cược!',
+          ephemeral: true
+        });
+      }
+    }
+
+  const amountValue = amount === 'All' ? user.balance : parseInt(amount);
+  
+  if (isNaN(amountValue) || amountValue < 100 || amountValue > user.balance) {
+    return interaction.reply({ 
+      content: `❌ Bạn không có đủ tiền - còn lại: ${user.balance.toLocaleString()}!`,
+      flags: MessageFlags.Ephemeral 
+    });
+  }
+
+          game.bets.push({
+  userId: interaction.user.id,
+  amount: amountValue,
+  choice: choice === 'tai' ? 'tài' : 'xỉu' // Thêm phần chuẩn hóa này
+});
+
+          await game.updateEmbed();
+          await interaction.followUp({
+            content: `✅ Đã đặt **${amountValue.toLocaleString()} coins** vào **${choice.toUpperCase()}**!`,
+            flags: MessageFlags.Ephemeral 
+          });
+        }
+      } catch (error) {
+        console.error('Lỗi xử lý button:', error);
+        await interaction.followUp({ 
+          content: '❌ Lỗi hệ thống!', 
+          flags: MessageFlags.Ephemeral 
+        });
+      }
+    }
+  }
+};
